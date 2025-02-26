@@ -1,0 +1,28 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@font-face {
+  font-family: "Formula1";
+  src: url("/fonts/Formula1-Regular.woff2") format("woff2");
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Formula1";
+  src: url("/fonts/Formula1-Bold.woff2") format("woff2");
+  font-weight: bold;
+  font-style: normal;
+}
+
+:root {
+  --f1-red: #e10600;
+  --f1-dark: #15151e;
+  --f1-card: #1f1f2d;
+}
+
+.font-formula1 {
+  font-family: "Formula1", sans-serif;
+}
+
