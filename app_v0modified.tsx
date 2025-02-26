@@ -6,56 +6,48 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { CalendarPlus, Clock, MapPin } from "lucide-react"
 import Image from "next/image"
-import { useState } from "react"
-
-// Sample data - In a real app, this would come from an API
-const races = [
-  {
-    id: 1,
-    name: "FORMULA 1 LOUIS VUITTON AUSTRALIAN GRAND PRIX 2025",
-    circuit: "Albert Park Circuit",
-    location: "Melbourne",
-    country: "Australia",
-    date: "14-16 MAR 2025",
-    flag: "🇦🇺",
-    sessions: {
-      practice1: "2025-03-14T03:30:00Z",
-      practice2: "2025-03-14T07:00:00Z",
-      practice3: "2025-03-15T03:30:00Z",
-      qualifying: "2025-03-15T07:00:00Z",
-      race: "2025-03-16T06:00:00Z",
-    },
-  },
-  // Add more races...
-]
-
-const teams = [
-  {
-    id: 1,
-    name: "Oracle Red Bull Racing",
-    car: "RB20",
-    logo: "/redbull-logo.svg",
-    color: "#3671C6",
-    drivers: [
-      {
-        name: "Max Verstappen",
-        number: "1",
-        country: "🇳🇱",
-        points: 575,
-      },
-      {
-        name: "Sergio Perez",
-        number: "11",
-        country: "🇲🇽",
-        points: 285,
-      },
-    ],
-  },
-  // Add more teams...
-]
+import { useState, useEffect } from "react"
+import { f1ApiService, type Session, type Driver, type DriverStanding, type ConstructorStanding } from "@/services/f1api"
 
 export default function F1Calendar() {
+  const [sessions, setSessions] = useState<Session[]>([])
+  const [drivers, setDrivers] = useState<Driver[]>([])
+  const [driverStandings, setDriverStandings] = useState<DriverStanding[]>([])
+  const [constructorStandings, setConstructorStandings] = useState<ConstructorStanding[]>([])
+  const [loading, setLoading] = useState(true)
   const [selectedTimezone, setSelectedTimezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone)
+
+  useEffect(() => {
+    const fetchF1Data = async () => {
+      try {
+        setLoading(true)
+        const [sessionsData, driversData] = await Promise.all([
+          f1ApiService.getSessions(),
+          f1ApiService.getDrivers()
+        ])
+
+        setSessions(sessionsData)
+        setDrivers(driversData)
+
+        // Get latest session for standings
+        const latestSession = await f1ApiService.getLatestSession()
+        if (latestSession) {
+          const [driverStandingsData, constructorStandingsData] = await Promise.all([
+            f1ApiService.getDriverStandings(latestSession.session_id),
+            f1ApiService.getConstructorStandings(latestSession.session_id)
+          ])
+          setDriverStandings(driverStandingsData)
+          setConstructorStandings(constructorStandingsData)
+        }
+      } catch (error) {
+        console.error('Error fetching F1 data:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchF1Data()
+  }, [])
 
   return (
     <div className="min-h-screen bg-[#15151E] text-white font-formula1">
@@ -75,165 +67,168 @@ export default function F1Calendar() {
           </TabsList>
 
           <TabsContent value="calendar" className="space-y-8">
-            <div className="flex justify-between items-center">
-              <div className="flex items-center space-x-4">
-                <Clock className="text-[#E10600]" />
-                <Select value={selectedTimezone} onValueChange={setSelectedTimezone}>
-                  <SelectTrigger className="w-[300px]">
-                    <SelectValue placeholder="Select timezone" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Intl.supportedValuesOf("timeZone").map((zone) => (
-                      <SelectItem key={zone} value={zone}>
-                        {zone}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+            {loading ? (
+              <div className="text-center py-8">
+                <p>Loading F1 calendar data...</p>
               </div>
-            </div>
+            ) : (
+              <>
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center space-x-4">
+                    <Clock className="text-[#E10600]" />
+                    <Select value={selectedTimezone} onValueChange={setSelectedTimezone}>
+                      <SelectTrigger className="w-[300px]">
+                        <SelectValue placeholder="Select timezone" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Intl.supportedValuesOf("timeZone").map((zone) => (
+                          <SelectItem key={zone} value={zone}>
+                            {zone}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
 
-            <div className="grid gap-6">
-              {races.map((race) => (
-                <Card key={race.id} className="bg-[#1F1F2D] border-none">
-                  <CardHeader>
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <div className="flex items-center space-x-2 mb-2">
-                          <span className="text-2xl">{race.flag}</span>
-                          <CardTitle>{race.name}</CardTitle>
+                <div className="grid gap-6">
+                  {sessions.map((session) => (
+                    <Card key={session.session_id} className="bg-[#1F1F2D] border-none">
+                      <CardHeader>
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <CardTitle className="text-xl mb-2">{session.meeting_name}</CardTitle>
+                            <CardDescription className="flex items-center space-x-2">
+                              <MapPin className="w-4 h-4" />
+                              <span>{session.circuit_short_name}, {session.country_name}</span>
+                            </CardDescription>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex items-center space-x-2"
+                            onClick={() => addToGoogleCalendar(session)}
+                          >
+                            <CalendarPlus className="w-4 h-4" />
+                            <span>Add to Calendar</span>
+                          </Button>
                         </div>
-                        <CardDescription className="text-gray-400 flex items-center space-x-2">
-                          <MapPin className="w-4 h-4" />
-                          <span>
-                            {race.circuit} - {race.location}
-                          </span>
-                        </CardDescription>
-                      </div>
-                      <Button
-                        variant="outline"
-                        className="flex items-center space-x-2"
-                        onClick={() => addToGoogleCalendar(race)}
-                      >
-                        <CalendarPlus className="w-4 h-4" />
-                        <span>Add to Calendar</span>
-                      </Button>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      {Object.entries(race.sessions).map(([session, time]) => (
-                        <div key={session} className="bg-[#15151E] p-4 rounded-lg">
-                          <div className="text-sm text-gray-400 mb-1">{session.toUpperCase()}</div>
-                          <div className="text-lg font-bold">{formatSessionTime(time, selectedTimezone)}</div>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-4">
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div>
+                              <h4 className="font-semibold">{session.session_type}</h4>
+                              <p className="text-sm text-gray-400">
+                                {formatSessionTime(session.date, selectedTimezone)}
+                              </p>
+                            </div>
+                          </div>
                         </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </>
+            )}
           </TabsContent>
 
           <TabsContent value="teams" className="space-y-8">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {teams.map((team) => (
-                <Card key={team.id} className="bg-[#1F1F2D] border-none overflow-hidden">
-                  <div className="h-2" style={{ backgroundColor: team.color }} />
-                  <CardHeader>
-                    <div className="flex items-center space-x-4">
-                      <Image
-                        src={team.logo || "/placeholder.svg"}
-                        alt={team.name}
-                        width={60}
-                        height={60}
-                        className="rounded-md"
-                      />
-                      <div>
-                        <CardTitle>{team.name}</CardTitle>
-                        <CardDescription className="text-gray-400">{team.car}</CardDescription>
+            {loading ? (
+              <div className="text-center py-8">
+                <p>Loading teams and drivers data...</p>
+              </div>
+            ) : (
+              <div className="grid gap-6">
+                {drivers.reduce((teams, driver) => {
+                  const existingTeam = teams.find(t => t.name === driver.team_name);
+                  if (!existingTeam) {
+                    teams.push({
+                      name: driver.team_name,
+                      color: driver.team_color,
+                      drivers: [driver]
+                    });
+                  } else {
+                    existingTeam.drivers.push(driver);
+                  }
+                  return teams;
+                }, [] as { name: string; color: string; drivers: Driver[] }[]).map((team) => (
+                  <Card key={team.name} className="bg-[#1F1F2D] border-none">
+                    <CardHeader>
+                      <CardTitle className="text-xl" style={{ color: team.color }}>{team.name}</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {team.drivers.map((driver) => (
+                          <div key={driver.driver_number} className="flex items-center space-x-4">
+                            <div className="text-2xl font-bold" style={{ color: team.color }}>
+                              {driver.driver_number}
+                            </div>
+                            <div>
+                              <h4 className="font-semibold">{driver.broadcast_name}</h4>
+                              <p className="text-sm text-gray-400">{driver.country_code}</p>
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="standings" className="space-y-8">
+            {loading ? (
+              <div className="text-center py-8">
+                <p>Loading standings data...</p>
+              </div>
+            ) : (
+              <div className="grid gap-8 md:grid-cols-2">
+                <Card className="bg-[#1F1F2D] border-none">
+                  <CardHeader>
+                    <CardTitle>Driver Standings</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="grid grid-cols-2 gap-4">
-                      {team.drivers.map((driver) => (
-                        <div key={driver.number} className="bg-[#15151E] p-4 rounded-lg">
-                          <div className="flex items-center space-x-2 mb-2">
-                            <span className="text-xl">{driver.country}</span>
-                            <span className="font-bold">{driver.name}</span>
+                    <div className="space-y-4">
+                      {driverStandings.map((standing) => (
+                        <div key={standing.driver_number} className="flex items-center justify-between">
+                          <div className="flex items-center space-x-4">
+                            <div className="w-8 text-center font-bold">{standing.position}</div>
+                            <div>
+                              <h4 className="font-semibold">{standing.broadcast_name}</h4>
+                              <p className="text-sm text-gray-400">{standing.team_name}</p>
+                            </div>
                           </div>
-                          <div className="text-[#E10600] text-3xl font-bold">{driver.number}</div>
-                          <div className="text-sm text-gray-400 mt-2">{driver.points} PTS</div>
+                          <div className="font-bold">{standing.points} PTS</div>
                         </div>
                       ))}
                     </div>
                   </CardContent>
                 </Card>
-              ))}
-            </div>
-          </TabsContent>
 
-          <TabsContent value="standings" className="space-y-8">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <Card className="bg-[#1F1F2D] border-none">
-                <CardHeader>
-                  <CardTitle>Driver Standings</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {teams
-                      .flatMap((team) => team.drivers)
-                      .sort((a, b) => b.points - a.points)
-                      .map((driver, index) => (
-                        <div
-                          key={driver.number}
-                          className="flex items-center justify-between bg-[#15151E] p-4 rounded-lg"
-                        >
+                <Card className="bg-[#1F1F2D] border-none">
+                  <CardHeader>
+                    <CardTitle>Constructor Standings</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      {constructorStandings.map((standing) => (
+                        <div key={standing.team_name} className="flex items-center justify-between">
                           <div className="flex items-center space-x-4">
-                            <span className="text-2xl font-bold">{index + 1}</span>
-                            <span className="text-xl">{driver.country}</span>
-                            <span>{driver.name}</span>
+                            <div className="w-8 text-center font-bold">{standing.position}</div>
+                            <div>
+                              <h4 className="font-semibold">{standing.team_name}</h4>
+                            </div>
                           </div>
-                          <div className="font-bold">{driver.points} PTS</div>
+                          <div className="font-bold">{standing.points} PTS</div>
                         </div>
                       ))}
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="bg-[#1F1F2D] border-none">
-                <CardHeader>
-                  <CardTitle>Constructor Standings</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {teams
-                      .map((team) => ({
-                        ...team,
-                        points: team.drivers.reduce((sum, driver) => sum + driver.points, 0),
-                      }))
-                      .sort((a, b) => b.points - a.points)
-                      .map((team, index) => (
-                        <div key={team.id} className="flex items-center justify-between bg-[#15151E] p-4 rounded-lg">
-                          <div className="flex items-center space-x-4">
-                            <span className="text-2xl font-bold">{index + 1}</span>
-                            <Image
-                              src={team.logo || "/placeholder.svg"}
-                              alt={team.name}
-                              width={40}
-                              height={40}
-                              className="rounded-md"
-                            />
-                            <span>{team.name}</span>
-                          </div>
-                          <div className="font-bold">{team.points} PTS</div>
-                        </div>
-                      ))}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
           </TabsContent>
         </Tabs>
       </main>
@@ -242,25 +237,25 @@ export default function F1Calendar() {
 }
 
 function formatSessionTime(time: string, timezone: string) {
-  return new Date(time).toLocaleString("en-US", {
+  return new Date(time).toLocaleString('en-US', {
     timeZone: timezone,
-    dateStyle: "short",
-    timeStyle: "short",
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
   })
 }
 
-function addToGoogleCalendar(race: (typeof races)[0]) {
-  const text = `F1: ${race.name}`
-  const details = `Formula 1 race at ${race.circuit}, ${race.location}`
-  const dates = new Date(race.sessions.race)
+function addToGoogleCalendar(session: Session) {
+  const text = `F1: ${session.meeting_name}`
+  const details = `Formula 1 race at ${session.circuit_short_name}, ${session.country_name}`
+  const dates = new Date(session.date)
     .toISOString()
     .replace(/[-:]/g, "")
     .replace(/\.\d{3}/g, "")
 
-  const url = `https://www.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(
-    text,
-  )}&details=${encodeURIComponent(details)}&dates=${dates}/${dates}`
+  const url = `https://www.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(text)}&details=${encodeURIComponent(details)}&dates=${dates}/${dates}`
 
   window.open(url, "_blank")
 }
-
