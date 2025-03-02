@@ -1,10 +1,10 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import Navbar from './components/Navbar'
 
 export const metadata: Metadata = {
-  title: 'v0 App',
-  description: 'Created with v0',
-  generator: 'v0.dev',
+  title: 'F1 Teams & Drivers',
+  description: 'Formula 1 Teams and Drivers Information',
 }
 
 export default function RootLayout({
@@ -14,7 +14,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <Navbar />
+        {children}
+      </body>
     </html>
   )
 }
