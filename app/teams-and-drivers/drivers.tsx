@@ -120,10 +120,10 @@ const drivers: Driver[] = [
   }
 ]
 
-export default function TeamsAndDrivers() {
+export default function DriversPage() {
   return (
     <div className="min-h-screen bg-background p-8">
-      <h1 className="text-4xl font-bold mb-8">Teams & Drivers</h1>
+      <h1 className="text-4xl font-bold mb-8">F1 Drivers</h1>
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {drivers.map((driver) => (
