@@ -165,6 +165,19 @@ END:VCALENDAR`
     addToGoogleCalendar([raceWithSession])
   }
 
+  const now = new Date();
+
+  const currentRaceIndex = filteredRaces.findIndex(race => {
+    const raceStartDate = new Date(race.sessions[0].date);
+    const raceEndDate = new Date(race.sessions[race.sessions.length - 1].date);
+    return now >= raceStartDate && now <= raceEndDate;
+  });
+
+  const nextRaceIndex = filteredRaces.findIndex((race, index) => {
+    const raceStartDate = new Date(race.sessions[0].date);
+    return index > currentRaceIndex && raceStartDate > now;
+  });
+
   return (
     <div className="min-h-screen bg-[#15151E] text-white font-formula1">
       <header className="bg-[#E10600] py-6">
@@ -317,13 +330,19 @@ END:VCALENDAR`
       <main className="container mx-auto py-8 px-4">
         <div className="grid gap-6">
           {filteredRaces.map((race, index) => (
-            <Card key={index} className="bg-[#1F1F2D] border-none hover:bg-[#2A2A3D] transition-colors">
+            <Card key={index} className="bg-[#1F1F2D] border-none hover:bg-[#2A2A3D] transition-colors relative">
               <CardHeader>
                 <CardTitle className="text-2xl text-[#E10600]">{race.name}</CardTitle>
                 <CardDescription className="text-gray-400">
                   Race weekend: {formatSessionDateTime(race.sessions[0].date, race.sessions[0].time, selectedTimezone)} - 
                   {formatSessionDateTime(race.sessions[4].date, race.sessions[4].time, selectedTimezone)}
                 </CardDescription>
+                {index === currentRaceIndex && (
+                  <span className="absolute top-2 right-2 bg-green-500 text-white text-xs font-bold px-2 py-1 rounded">Ongoing</span>
+                )}
+                {index === nextRaceIndex && (
+                  <span className="absolute top-2 right-2 bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded">Next</span>
+                )}
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
